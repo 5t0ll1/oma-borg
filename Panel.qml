@@ -19,6 +19,8 @@ Panel {
   property string focusSection: "backup"
   property int archiveIndex: 0
   property bool cursorActive: false
+  property bool showArchives: true
+  property bool showActions: true
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
@@ -32,7 +34,7 @@ Panel {
     return foreground
   }
   readonly property string glyph: "󰆼"
-  readonly property var actionIds: ["backup", "vorta", "refresh"]
+  readonly property var actionIds: ["backup"]
 
   function open() {
     root.controller.show()
@@ -76,7 +78,7 @@ Panel {
       return
     }
     if (next >= actionIds.length) {
-      if (borg.archives.length > 0) {
+      if (root.showArchives && borg.archives.length > 0) {
         focusSection = "archives"
         archiveIndex = 0
       }
@@ -87,8 +89,6 @@ Panel {
 
   function activateCursor() {
     if (focusSection === "backup") borg.startBackup()
-    else if (focusSection === "vorta") borg.openVorta()
-    else if (focusSection === "refresh") borg.refresh()
   }
 
   onOpenedChanged: if (opened) {
@@ -125,9 +125,7 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
-        if (t === "r" || t === "R") borg.refresh()
-        else if (t === "b" || t === "B") borg.startBackup()
-        else if (t === "v" || t === "V") borg.openVorta()
+        if (t === "b" || t === "B") borg.startBackup()
       }
 
       Flickable {
@@ -241,42 +239,73 @@ Panel {
             }
           }
 
-          PanelSeparator { foreground: root.foreground }
-
-          Column {
-            width: parent.width
-            spacing: Style.space(6)
-
-            ActionRow {
-              actionId: "backup"
-              title: borg.backupRunning ? "Backup running…" : (borg.needsAction && borg.plan.primary === "backup" ? "Backup now — do this" : "Backup now")
-              subtitle: borg.profileName !== "" ? ("vorta --create " + borg.profileName) : "Queue a Vorta backup"
-              icon: "󰁯"
-              enabled: !borg.busy && borg.vortaInstalled && borg.onHomeWifi
-            }
-            ActionRow {
-              actionId: "vorta"
-              title: "Open Vorta"
-              subtitle: "Full backup UI"
-              icon: "󰘔"
-              enabled: borg.vortaInstalled
-            }
-            ActionRow {
-              actionId: "refresh"
-              title: "Refresh status"
-              subtitle: borg.refreshing ? "Reading Vorta…" : "r"
-              icon: "󰑐"
-              enabled: true
-            }
-          }
-
           PanelSeparator {
-            visible: borg.archives.length > 0
+            visible: root.showActions
             foreground: root.foreground
           }
 
           Column {
-            visible: borg.archives.length > 0
+            visible: root.showActions
+            width: parent.width
+            spacing: Style.space(6)
+
+            Item {
+              width: parent.width
+              implicitHeight: backupRow.implicitHeight + Style.space(16)
+              opacity: (!borg.busy && borg.vortaInstalled && borg.onHomeWifi) ? 1.0 : 0.45
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                enabled: !borg.busy && borg.vortaInstalled && borg.onHomeWifi
+                onClicked: borg.startBackup()
+              }
+              Row {
+                id: backupRow
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.space(10)
+                anchors.rightMargin: Style.space(10)
+                spacing: Style.space(8)
+                Text {
+                  text: "󰁯"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.icon
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+                Column {
+                  width: parent.width - x - parent.spacing
+                  spacing: Style.space(1)
+                  anchors.verticalCenter: parent.verticalCenter
+                  Text {
+                    width: parent.width
+                    text: borg.backupRunning ? "Backup running…" : (borg.needsAction && borg.plan.primary === "backup" ? "Backup now — do this" : "Backup now")
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    elide: Text.ElideRight
+                  }
+                  Text {
+                    width: parent.width
+                    text: borg.profileName !== "" ? ("vorta --create " + borg.profileName) : "Queue a Vorta backup"
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    elide: Text.ElideRight
+                  }
+                }
+              }
+            }
+          }
+
+          PanelSeparator {
+            visible: root.showArchives && borg.archives.length > 0
+            foreground: root.foreground
+          }
+
+          Column {
+            visible: root.showArchives && borg.archives.length > 0
             width: parent.width
             spacing: Style.space(8)
 
@@ -297,71 +326,6 @@ Panel {
               }
             }
           }
-        }
-      }
-    }
-  }
-
-  component ActionRow: CursorSurface {
-    id: actionRow
-    property string actionId: ""
-    property string title: ""
-    property string subtitle: ""
-    property string icon: ""
-    property bool enabled: true
-
-    hasCursor: root.cursorActive && root.focusSection === actionId
-    foreground: root.foreground
-    implicitHeight: actionContent.implicitHeight + Style.spacing.rowPaddingX
-    opacity: enabled ? 1.0 : 0.45
-
-    MouseArea {
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: actionRow.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-      enabled: actionRow.enabled
-      onEntered: root.setAction(actionRow.actionId)
-      onClicked: {
-        root.setAction(actionRow.actionId)
-        root.activateCursor()
-      }
-    }
-
-    RowLayout {
-      id: actionContent
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.leftMargin: Style.space(10)
-      anchors.rightMargin: Style.space(10)
-      spacing: Style.space(8)
-
-      Text {
-        text: actionRow.icon
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.icon
-        Layout.alignment: Qt.AlignVCenter
-      }
-
-      ColumnLayout {
-        Layout.fillWidth: true
-        spacing: Style.space(1)
-        Text {
-          Layout.fillWidth: true
-          text: actionRow.title
-          color: root.foreground
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          elide: Text.ElideRight
-        }
-        Text {
-          Layout.fillWidth: true
-          text: actionRow.subtitle
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
         }
       }
     }

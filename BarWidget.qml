@@ -86,8 +86,8 @@ BarWidget {
           text: "󰆼"
           color: {
             if (borg.needsAction) return root.bar ? root.bar.urgent : Color.urgent
-            if (borg.state === "stale" || borg.state === "away") return Qt.darker(root.barForeground, 1.55)
-            return root.barForeground
+            if (borg.state === "stale" || borg.state === "away") return Qt.darker(root.bar ? root.bar.foreground : Color.foreground, 1.55)
+            return root.bar ? root.bar.foreground : Color.foreground
           }
           opacity: borg.backupRunning ? pulse.opacity : 1.0
           font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -116,9 +116,19 @@ BarWidget {
       }
     }
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) borg.startBackup()
-      else if (buttonCode === Qt.MiddleButton) borg.refresh()
-      else root.toggle()
+      if (buttonCode === Qt.RightButton) {
+        if (panelLoader.item) {
+          panelLoader.item.showArchives = true
+          panelLoader.item.showActions = false
+        }
+        root.open()
+      } else if (buttonCode !== Qt.MiddleButton) {
+        if (panelLoader.item) {
+          panelLoader.item.showArchives = false
+          panelLoader.item.showActions = true
+        }
+        root.open()
+      }
     }
   }
 

@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
 VORTA_DB = Path.home() / ".local/share/Vorta/settings.db"
+VORTA_LOG = Path.home() / ".local/state/Vorta/log/vorta.log"
 
 
 def which(name: str) -> bool:
@@ -29,6 +32,24 @@ def cmdline_of(pid: str) -> str:
     except OSError:
         return ""
     return raw.replace(b"\x00", b" ").decode("utf-8", "replace")
+
+
+def current_ssid() -> str:
+    try:
+        completed = subprocess.run(
+            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show", "--active"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    for line in completed.stdout.splitlines():
+        name, sep, kind = line.partition(":")
+        if sep and kind.split(":", 1)[0] == "802-11-wireless":
+            return name
+    return ""
 
 
 def scan_procs() -> tuple[bool, bool]:
@@ -113,6 +134,38 @@ def repo_display_name(url: str, repo_name: str, profile_name: str) -> str:
     return host or profile_name or "borg"
 
 
+def sanitize_hint(text: str) -> str:
+    t = str(text or "").strip()
+    t = re.sub(r"^[\d\-T:,. ]+ - \S+ - (ERROR|WARNING|INFO|DEBUG) - ", "", t)
+    t = re.sub(r"ssh://\S+", "the backup server", t)
+    t = re.sub(r"file://\S+", "a local path", t)
+    t = re.sub(r"/volume\S+", "the repository", t)
+    t = re.sub(r"(?i)passphrase\S*", "passphrase", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    if t.startswith("Remote: "):
+        t = t[len("Remote: ") :].strip()
+    return t[:180] + ("…" if len(t) > 180 else "")
+
+
+def failure_hint(returncode: int | None) -> str:
+    if returncode is None or returncode <= 1:
+        return ""
+    if not VORTA_LOG.exists():
+        return f"Borg exited with code {returncode}."
+    try:
+        lines = VORTA_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-250:]
+    except OSError:
+        return f"Borg exited with code {returncode}."
+    for line in reversed(lines):
+        if "objc" in line or "DEBUG" in line:
+            continue
+        if " ERROR " in line or "Error during backup" in line or "Could not" in line:
+            hint = sanitize_hint(line)
+            if hint:
+                return hint
+    return f"Borg exited with code {returncode}."
+
+
 def open_db() -> sqlite3.Connection | None:
     if not VORTA_DB.exists():
         return None
@@ -138,6 +191,7 @@ def load_status(profile_name: str) -> dict:
         "vortaRunning": vorta_running,
         "backupRunning": backup_running,
         "profileName": profile_name,
+        "currentSsid": current_ssid(),
         "repoHost": "",
         "scheduleMode": "off",
         "scheduleLabel": "manual",
@@ -151,6 +205,7 @@ def load_status(profile_name: str) -> dict:
         "lastBackupAgeLabel": "never",
         "lastReturncode": None,
         "lastOk": False,
+        "lastFailureHint": "",
         "archives": [],
         "statusText": "No backups yet",
     }
@@ -221,6 +276,7 @@ def load_status(profile_name: str) -> dict:
             code = event["returncode"]
             payload["lastReturncode"] = None if code is None else int(code)
             payload["lastOk"] = payload["lastReturncode"] in (0, 1)
+            payload["lastFailureHint"] = failure_hint(payload["lastReturncode"])
 
         archives = []
         for row in con.execute(

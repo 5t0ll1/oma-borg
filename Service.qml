@@ -15,6 +15,7 @@ Item {
   property bool vortaRunning: false
   property bool backupRunning: false
   property string profileName: ""
+  property string currentSsid: ""
   property string repoHost: ""
   property string scheduleMode: "off"
   property string scheduleLabel: "manual"
@@ -24,6 +25,7 @@ Item {
   property double lastBackupTs: 0
   property var lastReturncode: null
   property bool lastOk: false
+  property string lastFailureHint: ""
   property var archives: []
   property string statusText: "Checking…"
   property string lastError: ""
@@ -35,21 +37,36 @@ Item {
   readonly property int staleAfterHours: intSetting("staleAfterHours", 24, 1, 168)
   readonly property int failedAfterHours: intSetting("failedAfterHours", 48, 1, 336)
   readonly property string configuredProfile: String(setting("profileName", "") || "")
+  readonly property string homeSsid: String(setting("homeSsid", "") || "")
   readonly property string helperPath: pluginFile("status.py")
   readonly property bool busy: statusProcess.running || backupProcess.running
   readonly property string backupProfile: configuredProfile !== "" ? configuredProfile : profileName
+  readonly property bool onHomeWifi: homeSsid === "" || currentSsid === homeSsid
   readonly property string state: Model.deriveState({
     backupRunning: backupRunning,
     lastReturncode: lastReturncode,
     lastBackupTs: lastBackupTs,
-    vortaInstalled: vortaInstalled
+    vortaInstalled: vortaInstalled,
+    homeSsid: homeSsid,
+    currentSsid: currentSsid
   }, nowSec, staleAfterHours, failedAfterHours)
   readonly property string stateText: Model.stateLabel(state, liveStatusText)
   readonly property string liveAgeLabel: lastBackupTs > 0 ? Model.ageLabel(nowSec - lastBackupTs) : "never"
   readonly property string liveStatusText: backupRunning ? "Backup running" : (lastBackupTs > 0 ? ("Last backup " + liveAgeLabel) : statusText)
+  readonly property bool needsAction: Model.needsAction(state)
+  readonly property var plan: Model.actionPlan(state, {
+    lastFailureHint: lastFailureHint,
+    liveAgeLabel: liveAgeLabel,
+    vortaRunning: vortaRunning,
+    lastReturncode: lastReturncode,
+    homeSsid: homeSsid,
+    currentSsid: currentSsid
+  })
   readonly property string nextText: Model.nextLabel({
     scheduleMode: scheduleMode,
     scheduleLabel: scheduleLabel,
+    homeSsid: homeSsid,
+    currentSsid: currentSsid,
     intervalSec: intervalSec,
     lastBackupTs: lastBackupTs,
     makeUpMissed: makeUpMissed
@@ -102,6 +119,7 @@ Item {
     vortaRunning = parsed.vortaRunning === true
     backupRunning = parsed.backupRunning === true
     profileName = String(parsed.profileName || configuredProfile)
+    currentSsid = String(parsed.currentSsid || "")
     repoHost = String(parsed.repoHost || "")
     scheduleMode = String(parsed.scheduleMode || "off")
     scheduleLabel = String(parsed.scheduleLabel || "manual")
@@ -111,6 +129,7 @@ Item {
     lastBackupTs = Number(parsed.lastBackupTs || 0)
     lastReturncode = parsed.lastReturncode === undefined ? null : parsed.lastReturncode
     lastOk = parsed.lastOk === true
+    lastFailureHint = String(parsed.lastFailureHint || "")
     archives = parsed.archives || []
     statusText = String(parsed.statusText || "")
     lastError = ""
@@ -125,6 +144,11 @@ Item {
   function startBackup() {
     if (backupProcess.running) return
     lastError = ""
+    if (!onHomeWifi) {
+      lastError = homeSsid !== "" ? ("Backups only run on " + homeSsid) : "Not on home Wi-Fi"
+      actionStatus = lastError
+      return
+    }
     if (!vortaRunning) {
       actionStatus = "Starting Vorta…"
       Quickshell.execDetached(["vorta", "--daemonize"])

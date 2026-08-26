@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Exit 0 only when the active Wi-Fi connection name matches the required SSID.
+# Point Vorta's pre-backup command at this, e.g.:
+#   ~/.local/bin/vorta-require-wifi HOME_SSID
+set -euo pipefail
+
+required="${1:-}"
+if [[ -z $required ]]; then
+  echo "vorta-require-wifi: missing required SSID" >&2
+  exit 1
+fi
+
+ssid=""
+if command -v nmcli >/dev/null 2>&1; then
+  ssid=$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null \
+    | awk -F: '$2 == "802-11-wireless" { print $1; exit }')
+fi
+
+if [[ $ssid == "$required" ]]; then
+  exit 0
+fi
+
+echo "Backup skipped: not on home Wi-Fi ${required} (current: ${ssid:-none})" >&2
+exit 1

@@ -9,9 +9,12 @@ import "Model.js" as Model
 
 Panel {
   id: root
-  moduleName: "stolli.borg"
-  ipcTarget: "stolli.borg"
+  moduleName: "oma.borg"
   manageIpc: false
+
+  property var anchorItem: null
+  property var hostWidget: null
+  property var settings: ({})
 
   property string focusSection: "backup"
   property int archiveIndex: 0
@@ -23,18 +26,27 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color stateColor: {
-    if (borg.state === "failed" || borg.state === "overdue") return urgent
+    if (borg.needsAction) return urgent
     if (borg.state === "running") return accent
-    if (borg.state === "stale" || borg.state === "never" || borg.state === "missing") return dim
+    if (borg.state === "stale" || borg.state === "away") return dim
     return foreground
   }
-  readonly property color barIconColor: {
-    if (borg.state === "failed" || borg.state === "overdue") return bar ? bar.urgent : Color.urgent
-    if (borg.state === "stale" || borg.state === "never" || borg.state === "missing") return Qt.darker(barForeground, 1.55)
-    return barForeground
-  }
-  readonly property string glyph: "󰀼"
+  readonly property string glyph: "󰆼"
   readonly property var actionIds: ["backup", "vorta", "refresh"]
+
+  function open() {
+    root.controller.show()
+  }
+
+  function close() {
+    root.controller.hide()
+  }
+
+  function switchPanel(direction) {
+    if (root.bar && typeof root.bar.switchPanelFrom === "function")
+      return root.bar.switchPanelFrom(root.hostWidget || root, direction)
+    return false
+  }
 
   function actionIndex() {
     var idx = actionIds.indexOf(focusSection)
@@ -79,9 +91,6 @@ Panel {
     else if (focusSection === "refresh") borg.refresh()
   }
 
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
-
   onOpenedChanged: if (opened) {
     cursorActive = false
     focusSection = "backup"
@@ -95,54 +104,10 @@ Panel {
     settings: root.settings
   }
 
-  IpcHandler {
-    target: root.ipcTarget
-    function open(): void { root.open() }
-    function close(): void { root.close() }
-    function show(): void { root.open() }
-    function hide(): void { root.close() }
-    function toggle(): void { root.toggle() }
-    function refresh(): string { borg.refresh(); return "ok" }
-    function backup(): string { borg.startBackup(); return "ok" }
-    function status(): string { return borg.stateText }
-  }
-
-  BarIconButton {
-    id: button
-    anchors.fill: parent
-    bar: root.bar
-    tooltipText: borg.stateText
-    iconComponent: Component {
-      Text {
-        text: root.glyph
-        color: root.barIconColor
-        opacity: borg.backupRunning ? pulse.opacity : 1.0
-        font.family: root.fontFamily
-        font.pixelSize: Style.bar.iconFont
-        anchors.centerIn: parent
-      }
-    }
-    onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) borg.startBackup()
-      else if (buttonCode === Qt.MiddleButton) borg.refresh()
-      else root.toggle()
-    }
-  }
-
-  SequentialAnimation {
-    id: pulse
-    property real opacity: 1
-    running: borg.backupRunning
-    loops: Animation.Infinite
-    NumberAnimation { target: pulse; property: "opacity"; from: 1.0; to: 0.45; duration: 700; easing.type: Easing.InOutQuad }
-    NumberAnimation { target: pulse; property: "opacity"; from: 0.45; to: 1.0; duration: 700; easing.type: Easing.InOutQuad }
-    onStopped: pulse.opacity = 1
-  }
-
   KeyboardPanel {
     id: panel
-    anchorItem: button
-    owner: root
+    anchorItem: root.anchorItem
+    owner: root.hostWidget || root
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
@@ -184,11 +149,11 @@ Panel {
           PanelHero {
             width: parent.width
             title: "Borg"
-            meta: borg.stateText
-            detail: borg.repoHost
+            meta: borg.needsAction ? borg.plan.title : borg.stateText
+            detail: borg.needsAction ? "Action needed" : borg.repoHost
             foreground: root.foreground
             fontFamily: root.fontFamily
-            iconOpacity: borg.backupRunning ? 1.0 : (borg.state === "ok" ? 1.0 : 0.7)
+            iconOpacity: 1.0
             iconComponent: Component {
               Text {
                 text: root.glyph
@@ -209,6 +174,57 @@ Panel {
             wrapMode: Text.WordWrap
           }
 
+          Rectangle {
+            visible: borg.needsAction || borg.state === "away"
+            width: parent.width
+            implicitHeight: attentionCol.implicitHeight + Style.space(16)
+            radius: Style.cornerRadius
+            color: "transparent"
+            border.width: Math.max(1, Style.space(1))
+            border.color: borg.needsAction ? root.urgent : root.dim
+
+            Column {
+              id: attentionCol
+              anchors.left: parent.left
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              anchors.leftMargin: Style.space(12)
+              anchors.rightMargin: Style.space(12)
+              spacing: Style.space(6)
+
+              Text {
+                width: parent.width
+                text: borg.plan.title
+                color: borg.needsAction ? root.urgent : root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                wrapMode: Text.WordWrap
+              }
+              Text {
+                width: parent.width
+                text: borg.plan.body
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.WordWrap
+              }
+              Repeater {
+                model: borg.plan.steps
+                Text {
+                  required property int index
+                  required property var modelData
+                  width: attentionCol.width
+                  text: (index + 1) + ". " + modelData
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  wrapMode: Text.WordWrap
+                }
+              }
+            }
+          }
+
           Column {
             width: parent.width
             spacing: Style.spacing.labelGap
@@ -218,6 +234,11 @@ Panel {
             InfoPair { label: "Schedule"; value: borg.scheduleLabel }
             InfoPair { label: "Next"; value: borg.nextText }
             InfoPair { label: "Vorta"; value: borg.vortaRunning ? "running" : (borg.vortaInstalled ? "not running" : "not installed") }
+            InfoPair {
+              visible: borg.homeSsid !== ""
+              label: "Wi-Fi"
+              value: borg.onHomeWifi ? borg.homeSsid : ((borg.currentSsid !== "" ? borg.currentSsid : "none") + " · home is " + borg.homeSsid)
+            }
           }
 
           PanelSeparator { foreground: root.foreground }
@@ -228,10 +249,10 @@ Panel {
 
             ActionRow {
               actionId: "backup"
-              title: borg.backupRunning ? "Backup running…" : "Backup now"
-              subtitle: "vorta --create " + borg.profileName
+              title: borg.backupRunning ? "Backup running…" : (borg.needsAction && borg.plan.primary === "backup" ? "Backup now — do this" : "Backup now")
+              subtitle: borg.profileName !== "" ? ("vorta --create " + borg.profileName) : "Queue a Vorta backup"
               icon: "󰁯"
-              enabled: !borg.busy && borg.vortaInstalled
+              enabled: !borg.busy && borg.vortaInstalled && borg.onHomeWifi
             }
             ActionRow {
               actionId: "vorta"
@@ -377,6 +398,7 @@ Panel {
   component InfoPair: Row {
     property string label: ""
     property string value: ""
+    visible: true
     width: parent.width
     spacing: Style.space(8)
     Text {

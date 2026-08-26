@@ -2,10 +2,11 @@
 
 Omarchy bar widget for [Vorta](https://github.com/borgbase/vorta) / [Borg](https://www.borgbackup.org/).
 
-Shows last-backup freshness on the bar, lists recent archives in a panel, and
-can queue a backup or open Vorta. Status is read from Vorta's **local** SQLite
-database and `/proc`. The widget never SSHs to a backup server and never
-reads Borg passphrases or SSH keys.
+Shows last-backup freshness on the bar and lists recent archives in a panel.
+Left click opens basic stats; right click opens the full view with archive
+history and a one-click Backup now button. Status is read from Vorta's
+**local** SQLite database and `/proc`. The widget never SSHs to a backup
+server and never reads Borg passphrases or SSH keys.
 
 ![oma-borg panel](screenshot.png)
 
@@ -52,8 +53,8 @@ quiet (not red) until you are home again.
 | Red with **!** | Last backup failed, overdue (> 48 hours), or no backup yet |
 | Pulse | A backup is running |
 
-When the icon is red, open the panel for a short **what to do** list
-(usually: get on the home network, then Backup now).
+When the icon is red, right-click for the full panel with a short
+**what to do** list (usually: get on the home network, then Backup now).
 
 Thresholds are widget settings (`staleAfterHours`, `failedAfterHours`).
 
@@ -61,17 +62,13 @@ Thresholds are widget settings (`staleAfterHours`, `failedAfterHours`).
 
 Bar:
 
-- Left click: open the panel
-- Right click: start a backup
-- Middle click: refresh status
+- Left click: open basic stats (no archives)
+- Right click: open full view with archive history
+- Middle click: no action
 
 Panel:
 
-- `j` / `k` or arrows: move between actions
-- Enter / space: run the selected action
 - `b`: backup now
-- `v`: open Vorta
-- `r`: refresh
 - Esc: close
 
 ## What this repo does not contain

@@ -86,6 +86,12 @@ This project is meant to be public. It must not include:
 Runtime status (profile name, last archive names) is read on **your**
 machine from Vorta. It is not stored in this repository.
 
+## Remove
+
+```bash
+omarchy plugin remove oma.borg
+```
+
 ## Development
 
 Repo root **is** the plugin folder (`manifest.json` at the top level), which

@@ -3,7 +3,7 @@
   "id": "oma.borg",
   "name": "Borg",
   "version": "1.0.0",
-  "author": "oma-borg contributors",
+  "author": "5t0ll1",
   "license": "MIT",
   "description": "Vorta/Borg backup status and one-click backup for the Omarchy bar.",
   "kinds": [

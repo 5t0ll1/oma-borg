@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "id": "stolli.borg",
+  "name": "Borg",
+  "version": "1.0.0",
+  "author": "stolli",
+  "license": "MIT",
+  "description": "Vorta/Borg backup status and one-click backup for the Omarchy bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Borg backup",
+    "description": "Last backup age, Vorta status, and a one-click backup.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 30,
+      "staleAfterHours": 24,
+      "failedAfterHours": 48,
+      "profileName": ""
+    },
+    "schema": [
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 10,
+        "max": 3600,
+        "step": 5,
+        "defaultValue": 30
+      },
+      {
+        "key": "staleAfterHours",
+        "type": "integer",
+        "label": "Stale after (hours)",
+        "min": 1,
+        "max": 168,
+        "step": 1,
+        "defaultValue": 24
+      },
+      {
+        "key": "failedAfterHours",
+        "type": "integer",
+        "label": "Overdue after (hours)",
+        "min": 1,
+        "max": 336,
+        "step": 1,
+        "defaultValue": 48
+      },
+      {
+        "key": "profileName",
+        "type": "string",
+        "label": "Vorta profile name (empty = first profile)",
+        "defaultValue": ""
+      }
+    ]
+  }
+}

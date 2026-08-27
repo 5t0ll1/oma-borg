@@ -153,7 +153,11 @@ def failure_hint(returncode: int | None) -> str:
     if not VORTA_LOG.exists():
         return f"Borg exited with code {returncode}."
     try:
-        lines = VORTA_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-250:]
+        with open(VORTA_LOG, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 256 * 1024))
+            tail = f.read().decode("utf-8", errors="replace")
+        lines = tail.splitlines()[-250:]
     except OSError:
         return f"Borg exited with code {returncode}."
     for line in reversed(lines):

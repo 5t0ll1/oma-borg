@@ -344,6 +344,7 @@ Panel {
       Text {
         width: parent.width
         text: archiveRow.archive ? String(archiveRow.archive.name || "") : ""
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -352,6 +353,7 @@ Panel {
       Text {
         width: parent.width
         text: archiveRow.archive ? String(archiveRow.archive.ageLabel || "") : ""
+        textFormat: Text.PlainText
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -367,6 +369,7 @@ Panel {
     spacing: Style.space(8)
     Text {
       text: label
+      textFormat: Text.PlainText
       color: root.foreground
       opacity: 0.6
       font.family: root.fontFamily
@@ -378,6 +381,7 @@ Panel {
     }
     Text {
       text: value
+      textFormat: Text.PlainText
       color: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall

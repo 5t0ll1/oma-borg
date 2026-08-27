@@ -1,4 +1,4 @@
-# oma-borg
+# omaborg
 
 Omarchy bar widget for [Vorta](https://github.com/borgbase/vorta) / [Borg](https://www.borgbackup.org/).
 
@@ -8,12 +8,12 @@ history and a one-click Backup now button. Status is read from Vorta's
 **local** SQLite database and `/proc`. The widget never SSHs to a backup
 server and never reads Borg passphrases or SSH keys.
 
-![oma-borg panel](screenshot.png)
+![omaborg panel](screenshot.png)
 
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/<you>/oma-borg.git --enable
+omarchy plugin add https://github.com/<you>/omaborg.git --enable
 ```
 
 Place it on the bar if needed:

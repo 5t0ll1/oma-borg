@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 import subprocess
 import sys
 from datetime import datetime
@@ -150,16 +151,27 @@ def sanitize_hint(text: str) -> str:
 def failure_hint(returncode: int | None) -> str:
     if returncode is None or returncode <= 1:
         return ""
-    if not VORTA_LOG.exists():
-        return f"Borg exited with code {returncode}."
+    fd = -1
     try:
-        with open(VORTA_LOG, "rb") as f:
-            f.seek(0, 2)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(VORTA_LOG, flags)
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return f"Borg exited with code {returncode}."
+        with open(fd, "rb", closefd=True) as f:
+            fd = -1
+            f.seek(0, os.SEEK_END)
             f.seek(max(0, f.tell() - 256 * 1024))
             tail = f.read().decode("utf-8", errors="replace")
         lines = tail.splitlines()[-250:]
     except OSError:
         return f"Borg exited with code {returncode}."
+    finally:
+        if fd != -1:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
     for line in reversed(lines):
         if "objc" in line or "DEBUG" in line:
             continue
